@@ -2,6 +2,8 @@
 #include <iostream>
 #include <limits>
 #include <ctime>
+#include <cmath>
+#include <cassert>
 
 template <typename T>
 cl::Platform BitonicSort<T>::get_GPU_platform(){
@@ -31,7 +33,100 @@ cl::Context BitonicSort<T>::get_GPU_context(cl_platform_id cur_platform){
     return cl::Context(CL_DEVICE_TYPE_GPU, properties);
 }
 
+template <typename T>
+void BitonicSort<T>::split(cl::vector<T>& arr, int from, int to, bool increasing){
 
+    for (int i = 0; i < (from - to) / 2; i++){
+
+        if (increasing && arr[from + i] > arr[to - i]){
+
+            std::swap(arr[from + i], arr[to - i]);
+        }
+
+        if (!increasing && arr[from + i] < arr[to - i]){
+
+            std::swap(arr[from + i], arr[to - i]);
+        }
+    }
+}
+
+template <typename T>
+void BitonicSort<T>::make_mono(cl::vector<T>& arr, int from, int to, bool increasing){
+
+    int bitonic_seq_size = to - from, cur_pos;
+    assert(bitonic_seq_size > 0);
+
+    while (bitonic_seq_size >= 2){
+
+        cur_pos = from;
+
+        for (int i = 0; i < (from - to) / bitonic_seq_size; i++){
+
+            split(arr, cur_pos, cur_pos + bitonic_seq_size, increasing);
+            cur_pos += bitonic_seq_size;
+        }
+
+        bitonic_seq_size /= 2;
+    }   
+}
+
+template <typename T>
+void BitonicSort<T>::sort_arr(cl::vector<T>& arr){
+
+    int input_size = std::pow(2, size_degree_of_two);
+
+    if (arr.size() != input_size){
+
+        std::cerr << "Invalid arr size:" << arr.size()
+        << " expected: " << input_size << std::endl;
+    }
+
+    bool increasing;
+    int cur_pos, bitonic_size;
+
+    for (int chunck_size = 2; chunck_size <= input_size; chunck_size *= 2){
+
+        cur_pos = 0;
+
+        for (int i = 0; i < input_size / (chunck_size * 2); i++){
+
+            make_mono(arr, cur_pos, cur_pos + chunck_size, true);
+            cur_pos += chunck_size;
+            make_mono(arr, cur_pos, cur_pos + chunck_size, false);
+            cur_pos += chunck_size;
+        }
+    }
+}
+
+template <typename T>
+bool BitonicSort<T>::check_sorted_arr(){
+
+    auto prev_it = sorted_arr.begin();
+    unsigned long cur_check_sum = 0;
+
+    for (auto it : sorted_arr){
+
+        if (it < prev_it){
+
+            std::cerr << "Wrong orderind:" 
+            << prev_it* << " > " << it* << std::endl;
+
+            return false;
+        }
+
+        cur_check_sum += std::hash<T>(it*);
+    }
+
+    if (cur_check_sum != check_sum){
+
+        std::cerr << "Wrong check sum:"
+        << cur_check_sum << " != " << check_sum << std::endl;
+
+        return false;
+    }
+
+    return true;
+}
 
 
 template <typename T>
@@ -82,7 +177,7 @@ void BitonicSort<T>::read_array(int num_of_elems){
 
     std::swap(tmp_buf, input_arr);
     num_of_elems_ = num_of_elems;
-    size_degree_of_two_ = degree_of_two;
+    size_degree_of_two = degree_of_two;
     check_sum = tmp_check_sum;
 }
 

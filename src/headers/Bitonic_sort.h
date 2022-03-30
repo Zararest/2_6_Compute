@@ -15,7 +15,7 @@ class BitonicSort{
 
     unsigned long check_sum = 0;
     int num_of_elems_ = 0;
-    int size_degree_of_two_ = 0;
+    int size_degree_of_two = 0;
     cl::vector<T> input_arr;
     cl::vector<T> sorted_arr;
 
@@ -23,9 +23,10 @@ class BitonicSort{
     static cl::Context  get_GPU_context(cl_platform_id cur_platform);
 
     static void sort_arr(cl::vector<T>& arr);
-    static void merge(cl::vector<T>& arr, int from, int to);
-    static void split(cl::vector<T>& arr, int from, int to);
-    static bool check_sorted_arr();
+    static void make_mono(cl::vector<T>& arr, int from, int to, bool increasing);
+    static void split(cl::vector<T>& arr, int from, int to, bool increasing);
+    
+    bool check_sorted_arr();
 
 public:
 
