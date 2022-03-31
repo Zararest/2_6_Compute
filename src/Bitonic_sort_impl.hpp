@@ -4,6 +4,8 @@
 #include <ctime>
 #include <cmath>
 #include <cassert>
+#include <fstream>
+#include <sstream>
 
 template <typename T>
 cl::Platform BitonicSort<T>::get_GPU_platform(){
@@ -103,46 +105,27 @@ void BitonicSort<T>::sort_arr(cl::vector<T>& arr, int size_degree_of_two){
 }
 
 template <typename T>
-bool BitonicSort<T>::check_sorted_arr(){
-    
-    T prev;
+void BitonicSort<T>::load_kernel(const std::string path){
 
-    if (!sorted_arr.empty()){
+    std::ifstream kernel_file{path};
+    std::stringstream tmp_stream;
 
-        prev = sorted_arr[0];
+    if (!kernel_file.is_open()){
+
+        std::cerr << "Can't read kernel" <<std::endl;
+        return;
     }
 
-    unsigned long cur_check_sum = 0;
-    
-    for (auto it : sorted_arr){
+    tmp_stream << kernel_file.rdbuf();
+    kernel_file.close();
 
-        if (it < prev){
-
-            std::cerr << "Wrong orderind:" 
-            << prev << " > " << it << std::endl;
-
-            return false;
-        }
-
-        prev = it;
-        
-        cur_check_sum += std::hash<T>{}(it);
-    }
-
-    if (cur_check_sum != check_sum){
-
-        std::cerr << "Wrong check sum:"
-        << cur_check_sum << " != " << check_sum << std::endl;
-
-        return false;
-    }
-
-    return true;
+    std::string tmp_str = tmp_stream.str();
+    std::swap(tmp_str, kernel_code);
 }
 
-
 template <typename T>
-BitonicSort<T>::BitonicSort(std::istream& input, std::ostream& output): platform_(get_GPU_platform()), 
+BitonicSort<T>::BitonicSort(std::istream& input, std::ostream& output): 
+                            platform_(get_GPU_platform()), 
                             context_(get_GPU_context(platform_())),
                             queue_(context_),
                             input_{input},
@@ -203,6 +186,43 @@ void BitonicSort<T>::print_array(){
 }
 
 template <typename T>
+bool BitonicSort<T>::check_sorted_arr(){
+    
+    T prev;
+
+    if (!sorted_arr.empty()){
+
+        prev = sorted_arr[0];
+    }
+
+    unsigned long cur_check_sum = 0;
+    
+    for (auto it : sorted_arr){
+
+        if (it < prev){
+
+            std::cerr << "Wrong orderind:" 
+            << prev << " > " << it << std::endl;
+
+            return false;
+        }
+
+        prev = it;
+        cur_check_sum += std::hash<T>{}(it);
+    }
+
+    if (cur_check_sum != check_sum){
+
+        std::cerr << "Wrong check sum:"
+        << cur_check_sum << " != " << check_sum << std::endl;
+
+        return false;
+    }
+
+    return true;
+}
+
+template <typename T>
 double BitonicSort<T>::CPU_time(){
 
     cl::vector<T> tmp_buf;
@@ -215,4 +235,10 @@ double BitonicSort<T>::CPU_time(){
     std::swap(tmp_buf, sorted_arr);
 
     return static_cast<double>(end - start) / CLOCKS_PER_SEC;
+}
+
+template <typename T>
+std::pair<double, double> BitonicSort<T>::GPU_time(){
+
+    cl::Program program();
 }

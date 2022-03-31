@@ -9,5 +9,7 @@ int main(){
     app.read_array(20);
     app.CPU_time();
     app.check_sorted_arr();
-    app.print_array();
+    
+    app.load_kernel("../src/Bitonic_kernel.cl");
+
 }

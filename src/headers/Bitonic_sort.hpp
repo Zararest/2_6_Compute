@@ -26,6 +26,7 @@ class BitonicSort{
     int size_degree_of_two = 0;
     cl::vector<T> input_arr;
     cl::vector<T> sorted_arr;
+    std::string kernel_code;
 
     static cl::Platform get_GPU_platform();
     static cl::Context  get_GPU_context(cl_platform_id cur_platform);
@@ -41,6 +42,7 @@ public:
     void read_array(int num_of_elems);
     void print_array();
     bool check_sorted_arr();
+    void load_kernel(const std::string path);
 
     double CPU_time();
     std::pair<double, double> GPU_time();    
