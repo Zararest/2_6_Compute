@@ -1,5 +1,7 @@
-__kernel void vector_add(__global int *A, __global int *B, __global int *C) {
+
+
+__kernel void Bitonic_sort(__global int *A) {
     
   int i = get_global_id(0);
-  C[i] = A[i] + B[i];
+  
 }

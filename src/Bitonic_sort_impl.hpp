@@ -6,6 +6,7 @@
 #include <cassert>
 #include <fstream>
 #include <sstream>
+#include <chrono>
 
 template <typename T>
 cl::Platform BitonicSort<T>::get_GPU_platform(){
@@ -124,10 +125,16 @@ void BitonicSort<T>::load_kernel(const std::string path){
 }
 
 template <typename T>
-BitonicSort<T>::BitonicSort(std::istream& input, std::ostream& output): 
+BitonicSort<T>::BitonicSort(std::istream& input, std::ostream& output):
+                            BitonicSort<T>(Config{}, input, output)
+{}
+
+template <typename T>
+BitonicSort<T>::BitonicSort(const Config& config, std::istream& input, std::ostream& output):
+                            config_{config},
                             platform_(get_GPU_platform()), 
                             context_(get_GPU_context(platform_())),
-                            queue_(context_),
+                            queue_{context_, config_.propert},
                             input_{input},
                             output_{output}
 {
@@ -136,7 +143,7 @@ BitonicSort<T>::BitonicSort(std::istream& input, std::ostream& output):
 
     std::cout << "Platform:\n"
     << "-name: " << platform_name << '\n'
-    << "-priofile" << platform_profile << std::endl;           
+    << "-priofile " << platform_profile << '\n' << std::endl;           
 }
 
 template <typename T>
@@ -240,5 +247,34 @@ double BitonicSort<T>::CPU_time(){
 template <typename T>
 std::pair<double, double> BitonicSort<T>::GPU_time(){
 
-    cl::Program program();
+    cl::Buffer cl_arr(context_, CL_MEM_READ_WRITE, input_arr.size() * sizeof(T));
+    cl::copy(queue_, input_arr.begin(), input_arr.end(), cl_arr);
+
+    cl::Program program(context_, kernel_code, true);
+
+    cl::KernelFunctor<cl::Buffer> funct(program, "Bitonic_sort");
+
+    //cl::NDRange global_range(input_arr.size() / (2 * LOCAL_MEM_SIZE / LOCAL_IT_SIZE));//каждый kernel имеет половину локальной памяти
+    //cl::NDRange local_range(LOCAL_IT_SIZE);
+    cl::NDRange global_range(10);
+    cl::NDRange local_range(1);
+    cl::EnqueueArgs args(queue_, global_range, local_range);
+
+    cl_ulong GPU_calc_start, GPU_calc_end;
+    std::chrono::high_resolution_clock::time_point GPU_start, GPU_end;
+    double GPU_time = 0, GPU_calc_time = 0;
+
+    GPU_start = std::chrono::high_resolution_clock::now();
+    cl::Event event = funct(args, cl_arr);
+    event.wait();
+    GPU_end = std::chrono::high_resolution_clock::now();
+    GPU_time = std::chrono::duration_cast<std::chrono::milliseconds>(GPU_end - GPU_start).count() / 1000;
+
+    GPU_calc_start = event.getProfilingInfo<CL_PROFILING_COMMAND_QUEUED>();
+    GPU_calc_end = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+    GPU_calc_time = (GPU_calc_end - GPU_calc_start) / 1'000'000'000;
+
+    cl::copy(queue_, cl_arr, sorted_arr.begin(), sorted_arr.end());
+
+    return std::make_pair(GPU_time, GPU_calc_time);
 }

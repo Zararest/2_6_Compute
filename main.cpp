@@ -4,7 +4,7 @@
 int main(){
 
     std::ifstream input("../bin/input");
-    BitonicSort<double> app{input};
+    BitonicSort<int> app{input};
 
     app.read_array(20);
     app.CPU_time();
@@ -12,4 +12,16 @@ int main(){
     
     app.load_kernel("../src/Bitonic_kernel.cl");
 
+    std::pair<double, double> GPU_time;
+
+    try{
+
+        GPU_time = app.GPU_time();
+    } catch(cl::Error& err){
+
+        std::cerr << "OpenCl:" << err.err() << ":" << err.what() << std::endl;
+    }
+
+    std::cout << "On GPU: " << GPU_time.first << std::endl;
+    std::cout << "Calc time: " << GPU_time.second << std::endl;
 }

@@ -11,8 +11,19 @@
 #include "../../lib/opencl.hpp"
 #include <iostream>
 
+struct Config{
+
+    int local_mem_size = 16384;
+    int local_it_size = 8;
+    std::string data_type = "int";
+    cl::QueueProperties propert =
+        cl::QueueProperties::Profiling | cl::QueueProperties::OutOfOrder;
+};
+
 template <typename T>
 class BitonicSort{
+
+    Config config_;
 
     cl::Platform platform_;
     cl::Context  context_;
@@ -37,6 +48,7 @@ class BitonicSort{
 
 public:
 
+    BitonicSort(const Config& config, std::istream& input, std::ostream& output = std::cout);
     BitonicSort(std::istream& input, std::ostream& output = std::cout);
 
     void read_array(int num_of_elems);
