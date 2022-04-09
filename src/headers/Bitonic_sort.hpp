@@ -11,9 +11,11 @@
 #include "../../lib/opencl.hpp"
 #include <iostream>
 
+#define TEST
+
 struct Config{
 
-    int local_mem_size = 16384;
+    int local_mem_size = 1024; //16384
     int local_it_size = 8;
     std::string data_type = "int";
     cl::QueueProperties propert =

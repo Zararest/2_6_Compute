@@ -250,13 +250,11 @@ double BitonicSort<T>::CPU_time(){
 template <typename T>
 int BitonicSort<T>::calc_global_it_size(){
 
-    int mem_per_thread = config_.local_mem_size / (config_.local_it_size);
+    #ifdef TEST
+        return 2;
+    #endif
 
-    if (mem_per_thread >= sizeof(T) * input_arr.size()){
-
-        return 1;
-    }
-
+    int mem_per_thread = 2 * config_.local_mem_size / (config_.local_it_size);
     int num_of_threads = sizeof(T) * input_arr.size() / mem_per_thread;
 
     return num_of_threads;
@@ -265,19 +263,21 @@ int BitonicSort<T>::calc_global_it_size(){
 template <typename T>
 int BitonicSort<T>::calc_local_it_size(){
 
-    int mem_per_thread = config_.local_mem_size / (config_.local_it_size);
-
-    if (mem_per_thread >= sizeof(T) * input_arr.size()){
-
+    #ifdef TEST
         return 1;
-    }  
+    #endif
 
     return config_.local_it_size;
 }
 
 template <typename T>
 int BitonicSort<T>::calc_local_mem_size(){
+
+    #ifdef TEST
+        return 20 * sizeof(T);
+    #endif
     
+    return config_.local_mem_size / config_.local_it_size;
 }
 
 
@@ -300,7 +300,7 @@ std::pair<double, double> BitonicSort<T>::GPU_time(){
     double GPU_time = 0, GPU_calc_time = 0;
 
     GPU_start = std::chrono::high_resolution_clock::now();
-    cl::Event event = funct(args, cl_arr, input_arr.size(), calc_local_mem_size());
+    cl::Event event = funct(args, cl_arr, input_arr.size(), calc_local_mem_size() / sizeof(T));
     event.wait();
     GPU_end = std::chrono::high_resolution_clock::now();
     GPU_time = std::chrono::duration_cast<std::chrono::milliseconds>(GPU_end - GPU_start).count() / 1000;

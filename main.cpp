@@ -3,11 +3,11 @@
 
 int main(){
 
-    std::ifstream input("../bin/input");
+    std::ifstream input("../bin/new_data.txt");
     BitonicSort<int> app{input};
 
-    app.read_array(20);
-    app.CPU_time();
+    app.read_array(100);
+    std::cout << "CPU time: " << app.CPU_time() << std::endl;
     app.check_sorted_arr();
     
     app.load_kernel("../src/Bitonic_kernel.cl");
@@ -25,5 +25,5 @@ int main(){
     std::cout << "On GPU: " << GPU_time.first << std::endl;
     std::cout << "Calc time: " << GPU_time.second << std::endl;
 
-    app.print_array();
+    //app.print_array();
 }
