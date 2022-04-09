@@ -120,7 +120,10 @@ void BitonicSort<T>::load_kernel(const std::string path){
     tmp_stream << kernel_file.rdbuf();
     kernel_file.close();
 
-    std::string tmp_str = tmp_stream.str();
+    std::string local_mem_size = std::string("#define LOC_SIZE ") + std::to_string(config_.local_mem_size) + "\n";
+    std::string data_type = std::string("#define T ") + config_.data_type + "\n";
+
+    std::string tmp_str = local_mem_size + data_type + tmp_stream.str();
     std::swap(tmp_str, kernel_code);
 }
 
@@ -245,6 +248,40 @@ double BitonicSort<T>::CPU_time(){
 }
 
 template <typename T>
+int BitonicSort<T>::calc_global_it_size(){
+
+    int mem_per_thread = config_.local_mem_size / (config_.local_it_size);
+
+    if (mem_per_thread >= sizeof(T) * input_arr.size()){
+
+        return 1;
+    }
+
+    int num_of_threads = sizeof(T) * input_arr.size() / mem_per_thread;
+
+    return num_of_threads;
+}
+
+template <typename T>
+int BitonicSort<T>::calc_local_it_size(){
+
+    int mem_per_thread = config_.local_mem_size / (config_.local_it_size);
+
+    if (mem_per_thread >= sizeof(T) * input_arr.size()){
+
+        return 1;
+    }  
+
+    return config_.local_it_size;
+}
+
+template <typename T>
+int BitonicSort<T>::calc_local_mem_size(){
+    
+}
+
+
+template <typename T>
 std::pair<double, double> BitonicSort<T>::GPU_time(){
 
     cl::Buffer cl_arr(context_, CL_MEM_READ_WRITE, input_arr.size() * sizeof(T));
@@ -252,12 +289,10 @@ std::pair<double, double> BitonicSort<T>::GPU_time(){
 
     cl::Program program(context_, kernel_code, true);
 
-    cl::KernelFunctor<cl::Buffer> funct(program, "Bitonic_sort");
+    cl::KernelFunctor<cl::Buffer, int, int> funct(program, "Bitonic_sort");
 
-    //cl::NDRange global_range(input_arr.size() / (2 * LOCAL_MEM_SIZE / LOCAL_IT_SIZE));//каждый kernel имеет половину локальной памяти
-    //cl::NDRange local_range(LOCAL_IT_SIZE);
-    cl::NDRange global_range(10);
-    cl::NDRange local_range(1);
+    cl::NDRange global_range(calc_global_it_size());//каждый kernel имеет половину локальной памяти
+    cl::NDRange local_range(calc_local_it_size());
     cl::EnqueueArgs args(queue_, global_range, local_range);
 
     cl_ulong GPU_calc_start, GPU_calc_end;
@@ -265,7 +300,7 @@ std::pair<double, double> BitonicSort<T>::GPU_time(){
     double GPU_time = 0, GPU_calc_time = 0;
 
     GPU_start = std::chrono::high_resolution_clock::now();
-    cl::Event event = funct(args, cl_arr);
+    cl::Event event = funct(args, cl_arr, input_arr.size(), calc_local_mem_size());
     event.wait();
     GPU_end = std::chrono::high_resolution_clock::now();
     GPU_time = std::chrono::duration_cast<std::chrono::milliseconds>(GPU_end - GPU_start).count() / 1000;

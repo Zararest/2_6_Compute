@@ -24,4 +24,6 @@ int main(){
 
     std::cout << "On GPU: " << GPU_time.first << std::endl;
     std::cout << "Calc time: " << GPU_time.second << std::endl;
+
+    app.print_array();
 }

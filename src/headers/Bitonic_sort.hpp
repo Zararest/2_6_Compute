@@ -39,6 +39,10 @@ class BitonicSort{
     cl::vector<T> sorted_arr;
     std::string kernel_code;
 
+    int calc_global_it_size();
+    int calc_local_it_size();
+    int calc_local_mem_size();
+
     static cl::Platform get_GPU_platform();
     static cl::Context  get_GPU_context(cl_platform_id cur_platform);
 
