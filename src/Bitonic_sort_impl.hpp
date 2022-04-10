@@ -42,13 +42,8 @@ void BitonicSort<T>::split(cl::vector<T>& arr, int from, int to, bool increasing
     int middle = (to - from + 1) / 2;
 
     for (int i = 0; i < middle; i++){
-        
-        if (increasing && arr[from + i] > arr[from + middle + i]){
 
-            std::swap(arr[from + i], arr[from + middle + i]);
-        }
-
-        if (!increasing && arr[from + i] < arr[from + middle + i]){
+        if (increasing ? (arr[from + i] > arr[from + middle + i]) : (arr[from + i] < arr[from + middle + i])){
 
             std::swap(arr[from + i], arr[from + middle + i]);
         }
