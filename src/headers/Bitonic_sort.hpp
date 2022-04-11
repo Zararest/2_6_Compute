@@ -11,7 +11,6 @@
 #include "../../lib/opencl.hpp"
 #include <iostream>
 
-#define TEST
 
 struct Config{
 

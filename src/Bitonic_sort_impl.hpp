@@ -7,6 +7,7 @@
 #include <fstream>
 #include <sstream>
 #include <chrono>
+#include <unistd.h>
 
 template <typename T>
 cl::Platform BitonicSort<T>::get_GPU_platform(){
@@ -249,7 +250,7 @@ int BitonicSort<T>::calc_glob_it_size(){
         return 2;
     #endif
 
-    int mem_per_thread = 2 * config_.local_mem_size / (config_.local_it_size);
+    int mem_per_thread = config_.local_mem_size / config_.local_it_size;
     int num_of_threads = sizeof(T) * input_arr.size() / mem_per_thread;
 
     return num_of_threads;
@@ -294,17 +295,23 @@ std::pair<double, double> BitonicSort<T>::GPU_time(){
     std::chrono::high_resolution_clock::time_point GPU_start, GPU_end;
     double GPU_time = 0, GPU_calc_time = 0;
 
+    std::cout << "global it size " << calc_glob_it_size() << std::endl
+              << "local it size " << calc_local_it_size() << std::endl
+              << "arr size " << input_arr.size() << std::endl 
+              << "local mem size " << calc_local_mem_size() / sizeof(T) << std::endl;
+
     GPU_start = std::chrono::high_resolution_clock::now();
     cl::Event event = funct(args, cl_arr, input_arr.size(), calc_local_mem_size() / sizeof(T));
     event.wait();
     GPU_end = std::chrono::high_resolution_clock::now();
-    GPU_time = std::chrono::duration_cast<std::chrono::milliseconds>(GPU_end - GPU_start).count() / 1000;
+    GPU_time = std::chrono::duration_cast<std::chrono::milliseconds>(GPU_end - GPU_start).count();
 
     GPU_calc_start = event.getProfilingInfo<CL_PROFILING_COMMAND_QUEUED>();
     GPU_calc_end = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
-    GPU_calc_time = (GPU_calc_end - GPU_calc_start) / 1'000'000'000;
+    GPU_calc_time = (GPU_calc_end - GPU_calc_start) / 1'000'000;
 
     cl::copy(queue_, cl_arr, sorted_arr.begin(), sorted_arr.end());
+    assert(sorted_arr.size() != 0);
 
     return std::make_pair(GPU_time, GPU_calc_time);
 }
