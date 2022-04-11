@@ -243,7 +243,7 @@ double BitonicSort<T>::CPU_time(){
 }
 
 template <typename T>
-int BitonicSort<T>::calc_global_it_size(){
+int BitonicSort<T>::calc_glob_it_size(){
 
     #ifdef TEST
         return 2;
@@ -286,7 +286,7 @@ std::pair<double, double> BitonicSort<T>::GPU_time(){
 
     cl::KernelFunctor<cl::Buffer, int, int> funct(program, "Bitonic_sort");
 
-    cl::NDRange global_range(calc_global_it_size());//каждый kernel имеет половину локальной памяти
+    cl::NDRange global_range(calc_glob_it_size());//каждый kernel имеет половину локальной памяти
     cl::NDRange local_range(calc_local_it_size());
     cl::EnqueueArgs args(queue_, global_range, local_range);
 

@@ -4,6 +4,7 @@ project(Bitonic_sort VERSION 0.1.0)
 find_package(OpenCL REQUIRED)
 
 add_executable(Bitonic_sort main.cpp)
+add_executable(Test test.cpp)
 
 target_link_libraries(Bitonic_sort OpenCL::OpenCL)
 

@@ -41,7 +41,7 @@ class BitonicSort{
     cl::vector<T> sorted_arr;
     std::string kernel_code;
 
-    int calc_global_it_size();
+    int calc_glob_it_size();
     int calc_local_it_size();
     int calc_local_mem_size();
 
