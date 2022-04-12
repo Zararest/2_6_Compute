@@ -14,11 +14,14 @@
 
 struct Config{
 
-    int local_mem_size = 16384; //16384
-    int local_it_size = 1;
+    int iteration_size = 256;
+    int local_mem_size = 16384;    //размер локальной памяти
+    int merging_threads_num = 8;   //количество потоков, работающих с ловакльной памятью
     std::string data_type = "int";
     cl::QueueProperties propert =
         cl::QueueProperties::Profiling | cl::QueueProperties::OutOfOrder;
+
+    Config(int max_it_size): iteration_size{256}{}
 };
 
 template <typename T>
@@ -40,9 +43,8 @@ class BitonicSort{
     cl::vector<T> sorted_arr;
     std::string kernel_code;
 
-    int calc_glob_it_size();
-    int calc_local_it_size();
-    int calc_local_mem_size();
+    int calc_it_size();
+    int calc_local_mem_per_thread_size();
     int get_max_WG_size();
 
     static cl::Platform get_GPU_platform();
@@ -63,7 +65,7 @@ public:
     void load_kernel(const std::string path);
 
     double CPU_time();
-    std::pair<double, double> GPU_time();    
+    std::pair<long, long> GPU_time();    
 
     void test();
 };

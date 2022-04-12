@@ -115,17 +115,18 @@ void BitonicSort<T>::load_kernel(const std::string path){
 
     tmp_stream << kernel_file.rdbuf();
     kernel_file.close();
-
-    std::string local_mem_size = std::string("#define LOC_SIZE ") + std::to_string(config_.local_mem_size) + "\n";
+    
+    std::string define_new_data = std::string("#define NEW_DATA\n");
+    std::string local_mem_size = std::string("#define LOC_SIZE ") + std::to_string(config_.local_mem_size / sizeof(T)) + "\n";
     std::string data_type = std::string("#define T ") + config_.data_type + "\n";
 
-    std::string tmp_str = local_mem_size + data_type + tmp_stream.str();
+    std::string tmp_str = define_new_data + local_mem_size + data_type + tmp_stream.str();
     std::swap(tmp_str, kernel_code);
 }
 
 template <typename T>
 BitonicSort<T>::BitonicSort(std::istream& input, std::ostream& output):
-                            BitonicSort<T>(Config{}, input, output)
+                            BitonicSort<T>(Config{get_max_WG_size()}, input, output)
 {}
 
 template <typename T>
@@ -143,7 +144,8 @@ BitonicSort<T>::BitonicSort(const Config& config, std::istream& input, std::ostr
     std::cout << "Platform:\n"
     << "-name: " << platform_name << '\n'
     << "-priofile " << platform_profile << '\n'
-    << "-max WG size " << get_max_WG_size() << '\n' << std::endl; 
+    << "-max WG size " << get_max_WG_size() << '\n' 
+    << "-cur WG size " << config.iteration_size << '\n' << std::endl; 
 }
 
 template <typename T>
@@ -245,50 +247,38 @@ double BitonicSort<T>::CPU_time(){
 }
 
 template <typename T>
-int BitonicSort<T>::calc_glob_it_size(){
+int BitonicSort<T>::calc_it_size(){
 
     #ifdef TEST
         return 2;
     #endif
 
-    int mem_per_thread = config_.local_mem_size / config_.local_it_size;
-    int num_of_threads = sizeof(T) * input_arr.size() / mem_per_thread;
-
-    return num_of_threads;
+    return config_.iteration_size; 
 }
 
 template <typename T>
-int BitonicSort<T>::calc_local_it_size(){
-
-    #ifdef TEST
-        return 1;
-    #endif
-
-    return config_.local_it_size;
-}
-
-template <typename T>
-int BitonicSort<T>::calc_local_mem_size(){
+int BitonicSort<T>::calc_local_mem_per_thread_size(){
 
     #ifdef TEST
         return 20 * sizeof(T);
     #endif
     
-    return config_.local_mem_size / config_.local_it_size;
+    return config_.local_mem_size / config_.merging_threads_num;
 }
 
 template <typename T>
 int BitonicSort<T>::get_max_WG_size(){
 
+    cl::Platform platform = get_GPU_platform();
     std::vector<cl::Device> devices; 
-    platform_.getDevices(CL_DEVICE_TYPE_GPU, &devices);
+    platform.getDevices(CL_DEVICE_TYPE_GPU, &devices);
     int result = 0;
 
     for (auto it : devices){
 
-        if (it.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() > result){
+        if (it.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() > result){
 
-            result = it.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+            result = it.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
         }
     }
 
@@ -296,37 +286,36 @@ int BitonicSort<T>::get_max_WG_size(){
 }
 
 template <typename T>
-std::pair<double, double> BitonicSort<T>::GPU_time(){
+std::pair<long, long> BitonicSort<T>::GPU_time(){
 
     cl::Buffer cl_arr(context_, CL_MEM_READ_WRITE, input_arr.size() * sizeof(T));
     cl::copy(queue_, input_arr.begin(), input_arr.end(), cl_arr);
 
     cl::Program program(context_, kernel_code, true);
-
     cl::KernelFunctor<cl::Buffer, int, int> funct(program, "Bitonic_sort");
 
-    cl::NDRange global_range(1024);//каждый kernel имеет половину локальной памяти
-    cl::NDRange local_range(512);
+    cl::NDRange global_range(calc_it_size());
+    cl::NDRange local_range(calc_it_size());
     cl::EnqueueArgs args(queue_, global_range, local_range);
 
     cl_ulong GPU_calc_start, GPU_calc_end;
     std::chrono::high_resolution_clock::time_point GPU_start, GPU_end;
-    double GPU_time = 0, GPU_calc_time = 0;
+    long GPU_time = 0, GPU_calc_time = 0;
 
-    std::cout << "global it size " << calc_glob_it_size() << std::endl
-              << "local it size " << calc_local_it_size() << std::endl
-              << "arr size " << input_arr.size() << std::endl 
-              << "local mem size " << calc_local_mem_size() / sizeof(T) << std::endl;
+    std::cout << "global it size " << calc_it_size() << std::endl
+              << "local it size "  << calc_it_size() << std::endl
+              << "arr size "       << input_arr.size() << std::endl 
+              << "local arr size " << calc_local_mem_per_thread_size() / sizeof(T) << std::endl;
 
     GPU_start = std::chrono::high_resolution_clock::now();
-    cl::Event event = funct(args, cl_arr, input_arr.size(), calc_local_mem_size() / sizeof(T));
+    cl::Event event = funct(args, cl_arr, input_arr.size(), calc_local_mem_per_thread_size() / sizeof(T));
     event.wait();
     GPU_end = std::chrono::high_resolution_clock::now();
     GPU_time = std::chrono::duration_cast<std::chrono::milliseconds>(GPU_end - GPU_start).count();
 
     GPU_calc_start = event.getProfilingInfo<CL_PROFILING_COMMAND_QUEUED>();
     GPU_calc_end = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
-    GPU_calc_time = (GPU_calc_end - GPU_calc_start) / 1'000'000;
+    GPU_calc_time = (GPU_calc_end - GPU_calc_start) / 1'000;
 
     sorted_arr.resize(input_arr.size());
     cl::copy(queue_, cl_arr, sorted_arr.begin(), sorted_arr.end());
@@ -334,20 +323,4 @@ std::pair<double, double> BitonicSort<T>::GPU_time(){
     return std::make_pair(GPU_time, GPU_calc_time);
 }
 
-template <typename T>
-void BitonicSort<T>::test(){
 
-    cl::Buffer cl_arr(context_, CL_MEM_READ_WRITE, input_arr.size() * sizeof(T));
-    cl::copy(queue_, input_arr.begin(), input_arr.end(), cl_arr);
-
-    cl::Program program(context_, kernel_code, true);
-
-    cl::KernelFunctor<cl::Buffer, int, int> funct(program, "Bitonic_sort");
-
-    cl::NDRange global_range();
-    cl::NDRange local_range();
-    cl::EnqueueArgs args(queue_, global_range, local_range);
-
-    cl::Event event = funct(args, cl_arr, input_arr.size(), calc_local_mem_size() / sizeof(T));
-    event.wait();
-}
