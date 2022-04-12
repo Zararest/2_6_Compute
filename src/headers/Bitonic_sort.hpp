@@ -14,8 +14,8 @@
 
 struct Config{
 
-    int local_mem_size = 1024; //16384
-    int local_it_size = 8;
+    int local_mem_size = 16384; //16384
+    int local_it_size = 1;
     std::string data_type = "int";
     cl::QueueProperties propert =
         cl::QueueProperties::Profiling | cl::QueueProperties::OutOfOrder;
@@ -43,6 +43,7 @@ class BitonicSort{
     int calc_glob_it_size();
     int calc_local_it_size();
     int calc_local_mem_size();
+    int get_max_WG_size();
 
     static cl::Platform get_GPU_platform();
     static cl::Context  get_GPU_context(cl_platform_id cur_platform);
@@ -63,6 +64,8 @@ public:
 
     double CPU_time();
     std::pair<double, double> GPU_time();    
+
+    void test();
 };
 
 

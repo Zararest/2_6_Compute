@@ -139,10 +139,11 @@ BitonicSort<T>::BitonicSort(const Config& config, std::istream& input, std::ostr
 {
     cl::string platform_name = platform_.getInfo<CL_PLATFORM_NAME>();
     cl::string platform_profile = platform_.getInfo<CL_PLATFORM_PROFILE>();
-
+    
     std::cout << "Platform:\n"
     << "-name: " << platform_name << '\n'
-    << "-priofile " << platform_profile << '\n' << std::endl;           
+    << "-priofile " << platform_profile << '\n'
+    << "-max WG size " << get_max_WG_size() << '\n' << std::endl; 
 }
 
 template <typename T>
@@ -276,6 +277,23 @@ int BitonicSort<T>::calc_local_mem_size(){
     return config_.local_mem_size / config_.local_it_size;
 }
 
+template <typename T>
+int BitonicSort<T>::get_max_WG_size(){
+
+    std::vector<cl::Device> devices; 
+    platform_.getDevices(CL_DEVICE_TYPE_GPU, &devices);
+    int result = 0;
+
+    for (auto it : devices){
+
+        if (it.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() > result){
+
+            result = it.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+        }
+    }
+
+    return result;
+}
 
 template <typename T>
 std::pair<double, double> BitonicSort<T>::GPU_time(){
@@ -287,8 +305,8 @@ std::pair<double, double> BitonicSort<T>::GPU_time(){
 
     cl::KernelFunctor<cl::Buffer, int, int> funct(program, "Bitonic_sort");
 
-    cl::NDRange global_range(calc_glob_it_size());//каждый kernel имеет половину локальной памяти
-    cl::NDRange local_range(calc_local_it_size());
+    cl::NDRange global_range(1024);//каждый kernel имеет половину локальной памяти
+    cl::NDRange local_range(512);
     cl::EnqueueArgs args(queue_, global_range, local_range);
 
     cl_ulong GPU_calc_start, GPU_calc_end;
@@ -310,8 +328,26 @@ std::pair<double, double> BitonicSort<T>::GPU_time(){
     GPU_calc_end = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
     GPU_calc_time = (GPU_calc_end - GPU_calc_start) / 1'000'000;
 
+    sorted_arr.resize(input_arr.size());
     cl::copy(queue_, cl_arr, sorted_arr.begin(), sorted_arr.end());
-    assert(sorted_arr.size() != 0);
 
     return std::make_pair(GPU_time, GPU_calc_time);
+}
+
+template <typename T>
+void BitonicSort<T>::test(){
+
+    cl::Buffer cl_arr(context_, CL_MEM_READ_WRITE, input_arr.size() * sizeof(T));
+    cl::copy(queue_, input_arr.begin(), input_arr.end(), cl_arr);
+
+    cl::Program program(context_, kernel_code, true);
+
+    cl::KernelFunctor<cl::Buffer, int, int> funct(program, "Bitonic_sort");
+
+    cl::NDRange global_range();
+    cl::NDRange local_range();
+    cl::EnqueueArgs args(queue_, global_range, local_range);
+
+    cl::Event event = funct(args, cl_arr, input_arr.size(), calc_local_mem_size() / sizeof(T));
+    event.wait();
 }

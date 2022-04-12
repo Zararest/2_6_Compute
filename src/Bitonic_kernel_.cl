@@ -7,8 +7,8 @@
 
 #define MERGE(sign) do{                                                         \
                         int mono_size = size / 2;                               \
-                        __global T* first_arr = buf;                             \
-                        __global T* second_arr = buf + mono_size;                \
+                        __local T* first_arr = buf;                             \
+                        __local T* second_arr = buf + mono_size;                \
                                                                                 \
                         int first_it  = 0, second_it = 0, glob_it = 0;          \
                                                                                 \
@@ -47,17 +47,17 @@
 
 
 
-void copy_to_local(__global T* dest_arr, __global T* src_arr, int size){
+void copy_to_local(__local T* dest_arr, __global T* src_arr, int size){
 
     COPY_ARR;
 }
 
-void copy_to_global(__global T* dest_arr, __global T* src_arr, int size){
+void copy_to_global(__global T* dest_arr, __local T* src_arr, int size){
 
     COPY_ARR;
 }
 
-void sort_local_arr(__global T* arr, int size, int increase){ //shell sort
+void sort_local_arr(__local T* arr, int size, int increase){ //shell sort
 
     int h;                                                                              
     for (h = 1; h <= size / 9; h = 3 * h + 1);                                          
@@ -79,7 +79,7 @@ void sort_local_arr(__global T* arr, int size, int increase){ //shell sort
     }
 }
 
-void reverse_copy_to_local(__global T* dest_arr, __global T* src_arr, int size){
+void reverse_copy_to_local(__local T* dest_arr, __global T* src_arr, int size){
 
     for (int i = 0; i < size; i++){
 
@@ -87,36 +87,7 @@ void reverse_copy_to_local(__global T* dest_arr, __global T* src_arr, int size){
     }
 }
 
-void merge(__global T* glob_arr, __global T* buf, int size, int increase){ //ok
-
-    if (glob_arr[0] < glob_arr[size / 2 - 1] || glob_arr[size / 2] > glob_arr[size - 1]){
-
-        if (increase == 1){
-        
-            copy_to_local(buf, glob_arr, size / 2);
-            reverse_copy_to_local(buf + size / 2, glob_arr  + size / 2, size / 2);
-            MERGE(<);
-        } else{
-
-            copy_to_local(buf, glob_arr + size / 2, size / 2);
-            reverse_copy_to_local(buf + size / 2, glob_arr, size / 2);
-            MERGE(>);
-        }
-    } else{
-
-        if (increase == 1){
-
-            copy_to_local(buf, glob_arr + size / 2, size / 2);
-            reverse_copy_to_local(buf + size / 2, glob_arr, size / 2);
-            MERGE(<);
-        } else{
-
-            copy_to_local(buf, glob_arr, size / 2);
-            reverse_copy_to_local(buf + size / 2, glob_arr  + size / 2, size / 2);
-            MERGE(>);
-        }
-    }
-    return;
+void merge(__global T* glob_arr, __local T* buf, int size, int increase){ //ok
 
     if (max(glob_arr[0], glob_arr[size - 1]) > min(glob_arr[size / 2 - 1], glob_arr[size / 2])){
 
@@ -133,18 +104,18 @@ void merge(__global T* glob_arr, __global T* buf, int size, int increase){ //ok
 
             MERGE(>);
         }
-        copy_to_global(glob_arr, buf, size);
+
         return;
     }
 
     if (min(glob_arr[0], glob_arr[size - 1]) < max(glob_arr[size / 2 - 1], glob_arr[size / 2])){
 
         if (increase){
-        
-            copy_to_local(buf, glob_arr, size / 2);
-            reverse_copy_to_local(buf + size / 2, glob_arr  + size / 2, size / 2);
-            MERGE(<);
 
+            reverse_copy_to_local(buf, glob_arr + size / 2, size / 2);
+            copy_to_local(buf + size / 2, glob_arr, size / 2);
+
+            MERGE(<);
         } else{
 
             copy_to_local(buf, glob_arr + size / 2, size / 2);
@@ -152,7 +123,7 @@ void merge(__global T* glob_arr, __global T* buf, int size, int increase){ //ok
 
             MERGE(>);
         }
-        copy_to_global(glob_arr, buf, size);
+
         return;
     }
 }
@@ -182,12 +153,12 @@ int num_of_iter_(int arr_size, int bitonic_size){
     return result + 1;
 }
 
-void init_data(__global T* glob_arr, __global T* loc_arr, int size){
-    
+void init_data(__global T* glob_arr, __local T* loc_arr, int size){
+
     copy_to_local(loc_arr, glob_arr, size);
 
-    sort_local_arr(glob_arr, size / 2, TRUE);
-    sort_local_arr(glob_arr + size / 2, size / 2, FALSE);
+    sort_local_arr(loc_arr, size / 2, TRUE);
+    sort_local_arr(loc_arr + size / 2, size / 2, FALSE);
 
     copy_to_global(glob_arr, loc_arr, size);
 }
@@ -197,16 +168,12 @@ __kernel void Bitonic_sort(__global T* glob_arr, int arr_size, int loc_arr_size)
     int glob_id = get_global_id(0);
     int loc_id = get_local_id(0);
 
-    static __global T loc_arr[131072];
-
-    const int loc_arr_pos = glob_id * loc_arr_size, glob_arr_pos = glob_id * loc_arr_size;
-
-    for (int i = 0; i < loc_arr_size; i++){
-
-        loc_arr[loc_arr_pos + i] = -228;
-    }
+    __local T loc_arr[LOC_SIZE];
+    
+    const int loc_arr_pos = loc_id * loc_arr_size, glob_arr_pos = glob_id * loc_arr_size;
 
     init_data(glob_arr + glob_arr_pos, loc_arr + loc_arr_pos, loc_arr_size);
+    barrier(CLK_LOCAL_MEM_FENCE);
     barrier(CLK_GLOBAL_MEM_FENCE);
 
     int num_of_iter = num_of_iter_(arr_size, loc_arr_size); //каждый тред отвечает за память размером loc_arr_size
@@ -216,25 +183,23 @@ __kernel void Bitonic_sort(__global T* glob_arr, int arr_size, int loc_arr_size)
     for (int i = 0; i < num_of_iter; i++){
         
         for (int split_num = i; split_num > 0; split_num--){ //тут размер битонической сортировки в 2 раза больше чем локальный размер
-            printf("split num %i\n", split_num);
+            
             bitonic_size = loc_arr_size << split_num;
             threads_per_bitonic = 1 << split_num;
             left_arr_pos = (glob_id / threads_per_bitonic) * bitonic_size + (glob_id % threads_per_bitonic) * loc_arr_size / 2; //возможно надо на 2 разделить
             right_arr_pos = left_arr_pos + bitonic_size / 2;
             increase = !((glob_id / threads_per_bitonic) % 2);
             
-            barrier(CLK_GLOBAL_MEM_FENCE);
             split(glob_arr + left_arr_pos, glob_arr + right_arr_pos, loc_arr_size / 2, increase);
+            barrier(CLK_LOCAL_MEM_FENCE);
             barrier(CLK_GLOBAL_MEM_FENCE);
         }
         
-        increase = !((glob_id) % 2);
-
-        barrier(CLK_GLOBAL_MEM_FENCE);
+        increase = !((glob_arr_pos / bitonic_size) % 2);
         merge(glob_arr + glob_arr_pos, loc_arr + loc_arr_pos, loc_arr_size, increase);
+        barrier(CLK_LOCAL_MEM_FENCE);
         barrier(CLK_GLOBAL_MEM_FENCE);
     }
 
-    barrier(CLK_GLOBAL_MEM_FENCE);
     copy_to_global(glob_arr + glob_arr_pos, loc_arr + loc_arr_pos, loc_arr_size);
 }
