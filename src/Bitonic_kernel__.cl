@@ -236,5 +236,5 @@ __kernel void Bitonic_sort(__global T* glob_arr, int arr_size, int loc_arr_size)
     }
 
     barrier(CLK_GLOBAL_MEM_FENCE);
-    copy_to_global(glob_arr + glob_arr_pos, loc_arr + loc_arr_pos, loc_arr_size);
+    //copy_to_global(glob_arr + glob_arr_pos, loc_arr + loc_arr_pos, loc_arr_size);
 }

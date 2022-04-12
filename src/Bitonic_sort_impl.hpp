@@ -323,4 +323,9 @@ std::pair<long, long> BitonicSort<T>::GPU_time(){
     return std::make_pair(GPU_time, GPU_calc_time);
 }
 
+template <typename T>
+bool BitonicSort<T>::if_bitonic(int bitonic_size){
+
+}
+
 
