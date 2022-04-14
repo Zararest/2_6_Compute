@@ -64,7 +64,7 @@ public:
     bool check_sorted_arr();
     void load_kernel(const std::string path);
 
-    double CPU_time();
+    long CPU_time();
     std::pair<long, long> GPU_time();    
 
     bool if_bitonic(int bitonic_size);

@@ -8,8 +8,8 @@ int main(){
     BitonicSort<int> app{input, output};
 
     app.read_array(90000);
-    //std::cout << "CPU time: " << app.CPU_time() << std::endl;
-    //app.check_sorted_arr();
+    std::cout << "CPU time: " << app.CPU_time() << std::endl;
+    app.check_sorted_arr();
     
     app.load_kernel("../src/Bitonic_kernel.cl");
 

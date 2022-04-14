@@ -232,7 +232,7 @@ bool BitonicSort<T>::check_sorted_arr(){
 }
 
 template <typename T>
-double BitonicSort<T>::CPU_time(){
+long BitonicSort<T>::CPU_time(){
 
     cl::vector<T> tmp_buf;
     std::copy(input_arr.begin(), input_arr.end(), std::back_insert_iterator<cl::vector<T>>(tmp_buf));
@@ -243,7 +243,7 @@ double BitonicSort<T>::CPU_time(){
 
     std::swap(tmp_buf, sorted_arr);
 
-    return static_cast<double>(end - start) / CLOCKS_PER_SEC;
+    return (end - start) / 1000;
 }
 
 template <typename T>
@@ -315,7 +315,7 @@ std::pair<long, long> BitonicSort<T>::GPU_time(){
 
     GPU_calc_start = event.getProfilingInfo<CL_PROFILING_COMMAND_QUEUED>();
     GPU_calc_end = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
-    GPU_calc_time = (GPU_calc_end - GPU_calc_start) / 1'000;
+    GPU_calc_time = (GPU_calc_end - GPU_calc_start) / 1'000'000;
 
     sorted_arr.resize(input_arr.size());
     cl::copy(queue_, cl_arr, sorted_arr.begin(), sorted_arr.end());
