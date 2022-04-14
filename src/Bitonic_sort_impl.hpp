@@ -82,7 +82,6 @@ void BitonicSort<T>::sort_arr(cl::vector<T>& arr, int size_degree_of_two){
         << " expected: " << input_size << std::endl;
     }
 
-    bool increasing;
     int cur_pos, bitonic_size;
 
     for (int chunck_size = 2; chunck_size <= input_size / 2; chunck_size *= 2){
