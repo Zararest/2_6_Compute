@@ -323,8 +323,31 @@ std::pair<long, long> BitonicSort<T>::GPU_time(){
 }
 
 template <typename T>
-bool BitonicSort<T>::if_bitonic(int bitonic_size){
+void BitonicSort<T>::find_bitonic(){
 
+    bool increase = true;
+    int sequence_start = 0;
+    for (int i = 0; i < sorted_arr.size() - 1; i++){
+
+        if (increase && sorted_arr[i] > sorted_arr[i + 1]){
+
+            std::cout << "end of encrease [" << sequence_start << ", " << i << "] "
+            << sorted_arr[i] << " > " << sorted_arr[i + 1] << std::endl;
+
+            sequence_start = i + 1;
+            increase = !increase;
+        } else{
+
+            if (!increase && sorted_arr[i] < sorted_arr[i + 1]){
+
+                std::cout << "end of decrease [" << sequence_start << ", " << i << "] "
+                << sorted_arr[i] << " < " << sorted_arr[i + 1] << std::endl;
+
+                sequence_start = i + 1;
+                increase = !increase;
+            }
+        }
+    }
 }
 
 

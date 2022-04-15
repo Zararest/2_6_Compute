@@ -9,8 +9,8 @@ int main(){
 
     app.read_array(90000);
     std::cout << "CPU time: " << app.CPU_time() << std::endl;
-    app.check_sorted_arr();
-    
+    //app.check_sorted_arr();
+    //app.find_bitonic();
     app.load_kernel("../src/Bitonic_kernel.cl");
 
     std::pair<double, double> GPU_time;
@@ -27,5 +27,7 @@ int main(){
     std::cout << "Calc time: " << GPU_time.second << std::endl;
 
     app.print_array();
+    //app.find_bitonic();
     app.check_sorted_arr();
+
 }

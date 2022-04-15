@@ -67,7 +67,7 @@ public:
     long CPU_time();
     std::pair<long, long> GPU_time();    
 
-    bool if_bitonic(int bitonic_size);
+    void find_bitonic();
 };
 
 

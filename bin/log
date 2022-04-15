@@ -1,32 +1,13 @@
-16
-15
-14
-13
-12
-15
-20
-25
-30
-35
-40
-45
-50
-55
-60
-65
-1
-4
-7
-9
-10
-11
-10
-9
-8
-7
-6
-5
-4
-3
-2
-1
+Platform:
+-name: NVIDIA CUDA
+-priofile FULL_PROFILE
+-max WG size 24
+-cur WG size 256
+
+CPU time: 95
+global it size 256
+local it size 256
+arr size 131072
+local arr size 512
+On GPU: 123
+Calc time: 123

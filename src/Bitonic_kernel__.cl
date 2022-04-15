@@ -1,63 +1,38 @@
-
-#define TRUE 1
-#define FALSE 0
-
-#define T int
-#define LOC_SIZE 256
-
-#define MERGE(sign) do{                                                         \
-                        int mono_size = size / 2;                               \
-                        __global T* first_arr = buf;                             \
-                        __global T* second_arr = buf + mono_size;                \
-                                                                                \
-                        int first_it  = 0, second_it = 0, glob_it = 0;          \
-                                                                                \
-                        while (first_it != mono_size && second_it != mono_size){\
-                                                                                \
-                            if (first_arr[first_it] sign second_arr[second_it]){\
-                                                                                \
-                                glob_arr[glob_it] = first_arr[first_it];        \
-                                first_it++;                                     \
-                            } else{                                             \
-                                                                                \
-                                glob_arr[glob_it] = second_arr[second_it];      \
-                                second_it++;                                    \
-                            }                                                   \
-                                                                                \
-                            glob_it++;                                          \
-                        }                                                       \
-                                                                                \
-                        for (; first_it < mono_size; first_it++, glob_it++){    \
-                                                                                \
-                            glob_arr[glob_it] = first_arr[first_it];            \
-                        }                                                       \
-                                                                                \
-                        for (; second_it < mono_size; second_it++, glob_it++){  \
-                                                                                \
-                            glob_arr[glob_it] = second_arr[second_it];          \
-                        }                                                       \
-                    } while(0)   
+#ifndef NEW_DATA
+    #define T int
+    #define LOC_SIZE 256
+#endif
 
 #define COPY_ARR    do{                                 \
                        for (int i = 0; i < size; i++){  \
                                                         \
                             dest_arr[i] = src_arr[i];   \
                         }                               \
-                    } while (0)                             
+                    } while (0)                            
 
+#define IF_SPLIT_INCREASE (id / threads_per_bitonic) % 2 == 0
+#define IF_BITONIC_INCREASE ((initial_pos + i * buf_size) % new_bitonic_size) < (new_bitonic_size / 2) 
+#define RIGHT_INCREASE ((id + i) / threads_per_global_bitonic) % 2 == 0
 
-
-void copy_to_local(__global T* dest_arr, __global T* src_arr, int size){
-
-    COPY_ARR;
-}
-
-void copy_to_global(__global T* dest_arr, __global T* src_arr, int size){
+void copy_to_local(__local T* dest_arr, __global T* src_arr, int size){
 
     COPY_ARR;
 }
 
-void sort_local_arr(__global T* arr, int size, int increase){ //shell sort
+void reverse_copy_to_local(__local T* dest_arr, __global T* src_arr, int size){
+
+    for (int i = 0; i < size; i++){
+
+        dest_arr[i] = src_arr[size - 1 - i];
+    }
+}
+
+void copy_to_global(__global T* dest_arr, __local T* src_arr, int size){
+
+    COPY_ARR;
+}
+
+void sort_buf(__local T* arr, int size, int increase){ //shell sort
 
     int h;                                                                              
     for (h = 1; h <= size / 9; h = 3 * h + 1);                                          
@@ -79,85 +54,113 @@ void sort_local_arr(__global T* arr, int size, int increase){ //shell sort
     }
 }
 
-void reverse_copy_to_local(__global T* dest_arr, __global T* src_arr, int size){
+void split_local(__local T* arr, int from, int to, bool increase){
 
-    for (int i = 0; i < size; i++){
+    int middle = (to - from + 1) / 2;
 
-        dest_arr[i] = src_arr[size - 1 - i];
+    for (int i = 0; i < middle; i++){
+
+        if (increase ? (arr[from + i] > arr[from + middle + i]) : (arr[from + i] < arr[from + middle + i])){
+
+            T tmp = arr[from + i];
+            arr[from + i] = arr[from + middle + i];
+            arr[from + middle + i] = tmp;
+        }
     }
 }
 
-void merge(__global T* glob_arr, __global T* buf, int size, int increase){ //ok
+void make_mono(__local T* arr, int size, bool increase){
 
-    if (glob_arr[0] < glob_arr[size / 2 - 1] || glob_arr[size / 2] > glob_arr[size - 1]){
+    int bitonic_seq_size = size, cur_pos;
 
-        if (increase == 1){
+    while (bitonic_seq_size >= 2){
         
-            copy_to_local(buf, glob_arr, size / 2);
-            reverse_copy_to_local(buf + size / 2, glob_arr  + size / 2, size / 2);
-            MERGE(<);
-        } else{
-
-            copy_to_local(buf, glob_arr + size / 2, size / 2);
-            reverse_copy_to_local(buf + size / 2, glob_arr, size / 2);
-            MERGE(>);
+        cur_pos = 0;
+         
+        for (int i = 0; i < size / bitonic_seq_size; i++){
+            
+            split_local(arr, cur_pos, cur_pos + bitonic_seq_size - 1, increase);
+            cur_pos += bitonic_seq_size;
         }
-    } else{
 
-        if (increase == 1){
+        bitonic_seq_size /= 2;
+    } 
+}
+/*
+void bitonic_sort(__local T* arr, int arr_size, bool increase){
 
-            copy_to_local(buf, glob_arr + size / 2, size / 2);
-            reverse_copy_to_local(buf + size / 2, glob_arr, size / 2);
-            MERGE(<);
-        } else{
+    int cur_pos, bitonic_size;
 
-            copy_to_local(buf, glob_arr, size / 2);
-            reverse_copy_to_local(buf + size / 2, glob_arr  + size / 2, size / 2);
-            MERGE(>);
+    for (int chunck_size = 2; chunck_size <= arr_size / 2; chunck_size *= 2){
+
+        cur_pos = 0;
+
+        for (int i = 0; i < arr_size / (chunck_size * 2); i++){
+
+            make_mono(arr, cur_pos, cur_pos + chunck_size - 1, XOR(false, increase));
+            cur_pos += chunck_size;
+            make_mono(arr, cur_pos, cur_pos + chunck_size - 1, XOR(true, increase));
+            cur_pos += chunck_size;
         }
     }
-    return;
 
-    if (max(glob_arr[0], glob_arr[size - 1]) > min(glob_arr[size / 2 - 1], glob_arr[size / 2])){
+    make_mono(arr, 0, arr_size, XOR(false, increase));
+}
+*/
+void local_sort(__global T* arr, int arr_size, __local T* buf, int buf_size, int id, int cur_global_iter){
 
-        if (increase){
+    int mearging_thread_num = LOC_SIZE / buf_size;
+    if (id >= mearging_thread_num) return;
 
-            copy_to_local(buf, glob_arr + size / 2, size / 2);
-            reverse_copy_to_local(buf + size / 2, glob_arr, size / 2);
+    int global_size_per_thread = arr_size / mearging_thread_num; //размер памяти, котору юдолжен инициализировать тред
+    int initial_pos = global_size_per_thread * id;
+    int num_of_iters = global_size_per_thread / buf_size; 
 
-            MERGE(<);
-        } else{
+    int new_bitonic_size = buf_size << (cur_global_iter + 1); 
+    int threads_per_global_bitonic = 1 << (cur_global_iter + 1);
+    
+    __global T* cur_chunck_pos = arr + initial_pos;
 
-            reverse_copy_to_local(buf, glob_arr + size / 2, size / 2);
-            copy_to_local(buf + size / 2, glob_arr, size / 2);
+    for (int i = 0; i < num_of_iters; i++){
 
-            MERGE(>);
-        }
-        copy_to_global(glob_arr, buf, size);
-        return;
-    }
+        copy_to_local(buf, cur_chunck_pos, buf_size);
+        make_mono(buf, buf_size, RIGHT_INCREASE);
+        copy_to_global(cur_chunck_pos, buf, buf_size);
 
-    if (min(glob_arr[0], glob_arr[size - 1]) < max(glob_arr[size / 2 - 1], glob_arr[size / 2])){
-
-        if (increase){
-        
-            copy_to_local(buf, glob_arr, size / 2);
-            reverse_copy_to_local(buf + size / 2, glob_arr  + size / 2, size / 2);
-            MERGE(<);
-
-        } else{
-
-            copy_to_local(buf, glob_arr + size / 2, size / 2);
-            reverse_copy_to_local(buf + size / 2, glob_arr, size / 2);
-
-            MERGE(>);
-        }
-        copy_to_global(glob_arr, buf, size);
-        return;
+        cur_chunck_pos += buf_size;
     }
 }
 
-void split(__global T* left_arr, __global T* right_arr, int size, int increase){
+void init_chunck(__global T* chunck, __local T* buf, int buf_size){
+
+    int monoton_size = buf_size / 2;
+    copy_to_local(buf, chunck, buf_size);
+
+    sort_buf(buf, monoton_size, true);
+    sort_buf(buf + monoton_size, monoton_size, false);
+
+    copy_to_global(chunck, buf, buf_size);
+}
+
+void init_data(__global T* arr, int arr_size, __local T* buf, int buf_size, int id){
+    
+    int mearging_thread_num = LOC_SIZE / buf_size;
+    if (id >= mearging_thread_num) return;
+
+    int global_size_per_thread = arr_size / mearging_thread_num; //размер памяти, котору юдолжен инициализировать тред
+    int initial_pos = global_size_per_thread * id;
+    int num_of_iters = global_size_per_thread / buf_size;        //количество инициализаций на тред
+
+    __global T* cur_chunck_pos = arr + initial_pos;
+
+    for (int i = 0; i < num_of_iters; i++){
+
+        init_chunck(cur_chunck_pos, buf, buf_size);
+        cur_chunck_pos += buf_size;
+    }
+}
+
+void split(__global T* left_arr, __global T* right_arr, int size, bool increase){
     
     for (int i = 0; i < size; i++){
 
@@ -170,7 +173,7 @@ void split(__global T* left_arr, __global T* right_arr, int size, int increase){
     }
 }
 
-int num_of_iter_(int arr_size, int bitonic_size){
+int get_num_of_iter(int arr_size, int bitonic_size){
 
     int result = 0;
     while (arr_size > bitonic_size){
@@ -182,59 +185,36 @@ int num_of_iter_(int arr_size, int bitonic_size){
     return result + 1;
 }
 
-void init_data(__global T* glob_arr, __global T* loc_arr, int size){
+__kernel void Bitonic_sort(__global T* arr, int arr_size, int buf_size){
     
-    copy_to_local(loc_arr, glob_arr, size);
+    int id = get_local_id(0);
+    
+    if (get_global_size(0) != get_local_size(0)){
 
-    sort_local_arr(glob_arr, size / 2, TRUE);
-    sort_local_arr(glob_arr + size / 2, size / 2, FALSE);
-
-    copy_to_global(glob_arr, loc_arr, size);
-}
-
-__kernel void Bitonic_sort(__global T* glob_arr, int arr_size, int loc_arr_size){ //loc_arr_size считается в Т 
-
-    int glob_id = get_global_id(0);
-    int loc_id = get_local_id(0);
-
-    static __global T loc_arr[131072];
-
-    const int loc_arr_pos = glob_id * loc_arr_size, glob_arr_pos = glob_id * loc_arr_size;
-
-    for (int i = 0; i < loc_arr_size; i++){
-
-        loc_arr[loc_arr_pos + i] = -228;
+        printf("Error: global size != local size\n");
+        return;
     }
-
-    init_data(glob_arr + glob_arr_pos, loc_arr + loc_arr_pos, loc_arr_size);
-    barrier(CLK_GLOBAL_MEM_FENCE);
-
-    int num_of_iter = num_of_iter_(arr_size, loc_arr_size); //каждый тред отвечает за память размером loc_arr_size
-    int left_arr_pos, right_arr_pos, increase;//bitonic_size - размер битонической последовательности
-    unsigned threads_per_bitonic = 1, bitonic_size = loc_arr_size;
     
+    buf_size = 1;
+    int num_of_iter = get_num_of_iter(arr_size, buf_size);
+
     for (int i = 0; i < num_of_iter; i++){
         
-        for (int split_num = i; split_num > 0; split_num--){ //тут размер битонической сортировки в 2 раза больше чем локальный размер
-            printf("split num %i\n", split_num);
-            bitonic_size = loc_arr_size << split_num;
-            threads_per_bitonic = 1 << split_num;
-            left_arr_pos = (glob_id / threads_per_bitonic) * bitonic_size + (glob_id % threads_per_bitonic) * loc_arr_size / 2; //возможно надо на 2 разделить
-            right_arr_pos = left_arr_pos + bitonic_size / 2;
-            increase = !((glob_id / threads_per_bitonic) % 2);
+        for (int split_num = i; split_num > 0; split_num--){
+
+            unsigned bitonic_size = buf_size << split_num;      //размер битонической, которую сейчас разбиваем
+            unsigned threads_per_bitonic = 1 << split_num;
+
+            if (id == 0){
+
+                printf("bitonic size %i\n", bitonic_size);
+            }
+
+            int left_arr_pos = (id / threads_per_bitonic) * bitonic_size + (id % threads_per_bitonic) * (buf_size / 2);
+            int right_arr_pos = left_arr_pos + bitonic_size / 2;
             
-            barrier(CLK_GLOBAL_MEM_FENCE);
-            split(glob_arr + left_arr_pos, glob_arr + right_arr_pos, loc_arr_size / 2, increase);
-            barrier(CLK_GLOBAL_MEM_FENCE);
+            split(arr + left_arr_pos, arr + right_arr_pos, buf_size / 2, IF_SPLIT_INCREASE);
+            barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
         }
-        
-        increase = !((glob_id) % 2);
-
-        barrier(CLK_GLOBAL_MEM_FENCE);
-        merge(glob_arr + glob_arr_pos, loc_arr + loc_arr_pos, loc_arr_size, increase);
-        barrier(CLK_GLOBAL_MEM_FENCE);
     }
-
-    barrier(CLK_GLOBAL_MEM_FENCE);
-    //copy_to_global(glob_arr + glob_arr_pos, loc_arr + loc_arr_pos, loc_arr_size);
 }
