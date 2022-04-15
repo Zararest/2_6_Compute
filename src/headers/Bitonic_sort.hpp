@@ -11,6 +11,8 @@
 #include "../../lib/opencl.hpp"
 #include <iostream>
 
+template <typename T>
+using cl_it = typename cl::vector<T>::iterator;
 
 struct Config{
 
@@ -21,7 +23,8 @@ struct Config{
     cl::QueueProperties propert =
         cl::QueueProperties::Profiling | cl::QueueProperties::OutOfOrder;
 
-    Config(int max_it_size): iteration_size{256}{}
+    Config(int max_it_size): iteration_size{max_it_size}{}
+    Config(){}
 };
 
 template <typename T>
@@ -38,19 +41,23 @@ class BitonicSort{
 
     unsigned long check_sum = 0;
     int num_of_elems_ = 0;
-    int size_degree_of_two = 0;
     cl::vector<T> input_arr;
     cl::vector<T> sorted_arr;
     std::string kernel_code;
 
     int calc_it_size();
     int calc_local_mem_per_thread_size();
-    int get_max_WG_size();
+
+    cl::Event calc_on_GPU(cl::KernelFunctor<cl::Buffer, int, int>& funct, cl::EnqueueArgs& args, cl::Buffer& buf, int mem_per_thread);
+
+    static void additional_fill_arr(cl::vector<T>& arr, int new_size, T elem);
+    static int calc_bitonic_arr_size(int cur_size);
+    static unsigned long calc_hash(cl_it<T> begin, cl_it<T> end);
 
     static cl::Platform get_GPU_platform();
     static cl::Context  get_GPU_context(cl_platform_id cur_platform);
 
-    static void sort_arr(cl::vector<T>& arr, int size_degree_of_two);
+    static void sort_arr(cl::vector<T>& arr);
     static void make_mono(cl::vector<T>& arr, int from, int to, bool increasing);
     static void split(cl::vector<T>& arr, int from, int to, bool increasing);
 

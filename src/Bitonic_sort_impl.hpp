@@ -8,6 +8,7 @@
 #include <sstream>
 #include <chrono>
 #include <unistd.h>
+#include <algorithm>
 
 template <typename T>
 cl::Platform BitonicSort<T>::get_GPU_platform(){
@@ -72,9 +73,9 @@ void BitonicSort<T>::make_mono(cl::vector<T>& arr, int from, int to, bool increa
 }
 
 template <typename T>
-void BitonicSort<T>::sort_arr(cl::vector<T>& arr, int size_degree_of_two){
+void BitonicSort<T>::sort_arr(cl::vector<T>& arr){
 
-    int input_size = std::pow(2, size_degree_of_two);
+    int input_size = calc_bitonic_arr_size(arr.size());
 
     if (arr.size() != input_size){
 
@@ -125,7 +126,7 @@ void BitonicSort<T>::load_kernel(const std::string path){
 
 template <typename T>
 BitonicSort<T>::BitonicSort(std::istream& input, std::ostream& output):
-                            BitonicSort<T>(Config{get_max_WG_size()}, input, output)
+                            BitonicSort<T>(Config{}, input, output)
 {}
 
 template <typename T>
@@ -142,92 +143,91 @@ BitonicSort<T>::BitonicSort(const Config& config, std::istream& input, std::ostr
     
     std::cout << "Platform:\n"
     << "-name: " << platform_name << '\n'
-    << "-priofile " << platform_profile << '\n'
-    << "-max WG size " << get_max_WG_size() << '\n' 
+    << "-priofile " << platform_profile << '\n' 
     << "-cur WG size " << config.iteration_size << '\n' << std::endl; 
+}
+
+template <typename T>
+unsigned long BitonicSort<T>::calc_hash(cl_it<T> begin, cl_it<T> end){
+
+    unsigned long result = 0;
+    auto elems_hash = [&result](auto elem) mutable{ result += std::hash<T>{}(elem); };
+    std::for_each(begin, end, elems_hash);
+
+    return result;
+}
+
+template <typename T>
+int BitonicSort<T>::calc_bitonic_arr_size(int cur_size){
+
+    int new_size = 2;
+
+    while (new_size < cur_size){
+
+        new_size *= 2;
+    }
+
+    return new_size;
+}
+
+template <typename T>
+void BitonicSort<T>::additional_fill_arr(cl::vector<T>& arr, int new_size, T elem){
+
+    int prev_size = arr.size();
+    arr.resize(new_size);
+    
+    std::fill(arr.begin() + prev_size, arr.end(), elem);
 }
 
 template <typename T>
 void BitonicSort<T>::read_array(int num_of_elems){
 
     cl::vector<T> tmp_buf(num_of_elems);
-    unsigned long tmp_check_sum = 0;
 
-    for (int i = 0; i < num_of_elems; i++){
+    for (auto&& it : tmp_buf){
 
-        input_ >> tmp_buf[i];
-        tmp_check_sum += std::hash<T>{}(tmp_buf[i]);
+        input_ >> it; 
     }
 
-    int degree_of_two = 1, new_size = 2;
-
-    while (new_size < num_of_elems){
-
-        new_size *= 2;
-        degree_of_two++;
-    }
-
-    for (int i = 0; i < new_size - num_of_elems; i++){
-
-        tmp_buf.push_back(std::numeric_limits<T>::max());
-        tmp_check_sum += std::hash<T>{}(std::numeric_limits<T>::max());
-    }
+    int cur_size = tmp_buf.size();
+    additional_fill_arr(tmp_buf, calc_bitonic_arr_size(cur_size), std::numeric_limits<T>::max());
+    unsigned long tmp_check_sum = calc_hash(tmp_buf.begin(), tmp_buf.end());
 
     std::swap(tmp_buf, input_arr);
     num_of_elems_ = num_of_elems;
-    size_degree_of_two = degree_of_two;
     check_sum = tmp_check_sum;
 }
 
 template <typename T>
 void BitonicSort<T>::print_array(){
 
-    int i = 0;
-
-    for (auto it : sorted_arr){
-
-        if (i >= num_of_elems_) return;
-        i++;
-
-        output_ << it << std::endl;
-    }
+    auto print = [&](auto elem) mutable { output_ << elem << std::endl; };
+    std::for_each(sorted_arr.begin(), sorted_arr.end(), print);
 }
 
 template <typename T>
 bool BitonicSort<T>::check_sorted_arr(){
     
-    T prev;
+    bool result = true;
+    auto max_sort_iter = std::is_sorted_until(sorted_arr.begin(), sorted_arr.end());
 
-    if (!sorted_arr.empty()){
+    if (max_sort_iter != sorted_arr.end()){
 
-        prev = sorted_arr[0];
+        std::cerr << "Wrong ordering on: " << *max_sort_iter << std::endl;
+        result = false;
     }
 
-    unsigned long cur_check_sum = 0;
-    
-    for (auto it : sorted_arr){
-
-        if (it < prev){
-
-            std::cerr << "Wrong orderind:" 
-            << prev << " > " << it << std::endl;
-
-            return false;
-        }
-
-        prev = it;
-        cur_check_sum += std::hash<T>{}(it);
-    }
+    unsigned long cur_check_sum = calc_hash(sorted_arr.begin(), sorted_arr.end());
 
     if (cur_check_sum != check_sum){
 
-        std::cerr << "Wrong check sum:"
+        std::cerr << "Wrong check sum: "
         << cur_check_sum << " != " << check_sum << std::endl;
 
-        return false;
+        result = false;
     }
 
-    return true;
+    return result;
 }
 
 template <typename T>
@@ -236,13 +236,15 @@ long BitonicSort<T>::CPU_time(){
     cl::vector<T> tmp_buf;
     std::copy(input_arr.begin(), input_arr.end(), std::back_insert_iterator<cl::vector<T>>(tmp_buf));
 
-    clock_t start = clock();
-    sort_arr(tmp_buf, size_degree_of_two);
-    clock_t end = clock();
+    std::chrono::high_resolution_clock::time_point start, end;
+    
+    start = std::chrono::high_resolution_clock::now();
+    sort_arr(tmp_buf);
+    end = std::chrono::high_resolution_clock::now();
 
     std::swap(tmp_buf, sorted_arr);
 
-    return (end - start) / 1000;
+    return std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 }
 
 template <typename T>
@@ -265,23 +267,13 @@ int BitonicSort<T>::calc_local_mem_per_thread_size(){
     return config_.local_mem_size / config_.merging_threads_num;
 }
 
-template <typename T>
-int BitonicSort<T>::get_max_WG_size(){
+template<typename T>
+cl::Event BitonicSort<T>::calc_on_GPU(cl::KernelFunctor<cl::Buffer, int, int>& funct, cl::EnqueueArgs& args, cl::Buffer& buf, int mem_per_thread){
 
-    cl::Platform platform = get_GPU_platform();
-    std::vector<cl::Device> devices; 
-    platform.getDevices(CL_DEVICE_TYPE_GPU, &devices);
-    int result = 0;
+    cl::Event event = funct(args, buf, input_arr.size(), mem_per_thread);
+    event.wait();
 
-    for (auto it : devices){
-
-        if (it.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() > result){
-
-            result = it.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
-        }
-    }
-
-    return result;
+    return event;
 }
 
 template <typename T>
@@ -301,14 +293,10 @@ std::pair<long, long> BitonicSort<T>::GPU_time(){
     std::chrono::high_resolution_clock::time_point GPU_start, GPU_end;
     long GPU_time = 0, GPU_calc_time = 0;
 
-    std::cout << "global it size " << calc_it_size() << std::endl
-              << "local it size "  << calc_it_size() << std::endl
-              << "arr size "       << input_arr.size() << std::endl 
-              << "local arr size " << calc_local_mem_per_thread_size() / sizeof(T) << std::endl;
-
     GPU_start = std::chrono::high_resolution_clock::now();
-    cl::Event event = funct(args, cl_arr, input_arr.size(), calc_local_mem_per_thread_size() / sizeof(T));
-    event.wait();
+
+    cl::Event event = calc_on_GPU(funct, args, cl_arr, calc_local_mem_per_thread_size() / sizeof(T));
+    
     GPU_end = std::chrono::high_resolution_clock::now();
     GPU_time = std::chrono::duration_cast<std::chrono::milliseconds>(GPU_end - GPU_start).count();
 

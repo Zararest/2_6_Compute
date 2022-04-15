@@ -16,11 +16,11 @@ bool SortTest::test_file(const std::string& file_name){
     data >> data_size;
 
     sort.read_array(data_size);
-    sort.CPU_time();
-    result = result & sort.check_sorted_arr();
-
     sort.load_kernel("../src/Bitonic_kernel.cl");
     sort.GPU_time();
+    result = result & sort.check_sorted_arr();
+
+    sort.CPU_time();
     result = result & sort.check_sorted_arr();
 
     return result;
