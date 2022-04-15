@@ -3,14 +3,14 @@
 
 int main(){
 
-    std::ifstream input("../bin/new_data.txt");
+    std::ifstream input("../bin/Huge_data");
     std::ofstream output("../bin/out");
     BitonicSort<int> app{input, output};
 
-    app.read_array(90000);
+    app.read_array(4194304);
     std::cout << "CPU time: " << app.CPU_time() << std::endl;
-    //app.check_sorted_arr();
-    //app.find_bitonic();
+    app.check_sorted_arr();
+
     app.load_kernel("../src/Bitonic_kernel.cl");
 
     std::pair<double, double> GPU_time;
@@ -27,7 +27,5 @@ int main(){
     std::cout << "Calc time: " << GPU_time.second << std::endl;
 
     app.print_array();
-    //app.find_bitonic();
     app.check_sorted_arr();
-
 }
