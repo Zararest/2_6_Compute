@@ -9,5 +9,5 @@ global it size 256
 local it size 256
 arr size 131072
 local arr size 512
-On GPU: 123
-Calc time: 123
+On GPU: 127
+Calc time: 127
